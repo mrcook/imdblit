@@ -6,6 +6,27 @@ import (
 	"strings"
 )
 
+// compile all regular expression up front for major performance improvements
+var (
+	titleDetailsRegExp     = regexp.MustCompile(`\A(.*?) \(([0-9?]{4})(?:/([IVX]+))?\)`)
+	authorRegExp           = regexp.MustCompile(`^(.+?)\. +"`) // NOTE: also matches the opening " of the title
+	titleRegExp            = regexp.MustCompile(`^"([^"]+?)"\.? *`)
+	publisherRegExp        = regexp.MustCompile(`^\(([^)]+?)\)(?:, *)?|^([^:]+?): *`)
+	publisherNameRegEx     = regexp.MustCompile(`^([^,]+)(?:, *)?`)
+	notesRegExp            = regexp.MustCompile(`\((.+?)\)$`)
+	bracesRegExp           = regexp.MustCompile(`^\((.+?)\)$`)
+	randomTextRegExp       = regexp.MustCompile(`(?i), *(?:\(BK\)|\(HB\)|\(MG\)|\(NP\)|\(Novel\)|NONE|Pg\. N/?A|\(tme\d+\))`)
+	inRegExp               = regexp.MustCompile(`In: "(.+?)"(?:, *)?`)
+	isbnRegExp             = regexp.MustCompile(`, *IS[BS]N(?:-\d\d)?: ([0-9X-]+)`)
+	pageCountRegExp        = regexp.MustCompile(`, *Pg. *([0-9]+)`)
+	pageRangeCleanupRegExp = regexp.MustCompile(`(?i), *Pg\. *(?:pg[ds]?[.;?]|pg>\.|p/ n°\.|p[a^]gs\.|Pages: *) *`)
+	pageRangeRegExp        = regexp.MustCompile(`(?i), *Pg\. *((?:[a-z]?[0-9]+)(?:(?:-|\+|, *| *to *)[a-z]?[0-9]+)*)`)
+	firstPublishedRegExp   = regexp.MustCompile(`(?i)First published.+?(\d\d\d\d).?`)
+	publishedRegExp        = regexp.MustCompile(`\(?((?:\d{1,2} +)?(?:[JFMASOND][a-z]+ +)?\d{4})\)?`)
+	volumeNumberRegExp     = regexp.MustCompile(`, *Vol. *#? *([0-9]+)`)
+	issueNumberRegExp      = regexp.MustCompile(`, *Iss. *#? *([0-9]+)`)
+)
+
 type Key string
 
 // List of all the different record entries available to a movie record.
@@ -72,8 +93,7 @@ func (e textEntry) movieTitleDetails(movie *Movie) {
 	}
 
 	m := e[MOVI][0]
-	re := regexp.MustCompile(`\A(.*?) \(([0-9?]{4})(?:/([IVX]+))?\)`)
-	results := re.FindStringSubmatch(m)
+	results := titleDetailsRegExp.FindStringSubmatch(m)
 
 	if len(results) >= 1 {
 		movie.Title = results[1]
@@ -235,12 +255,11 @@ func (e textEntry) publicationParser(pub *publication, data string) {
 
 // extractAuthor from the text, based on its position in the text.
 func (e textEntry) extractAuthor(data string) (author string, str string) {
-	re := regexp.MustCompile(`^(.+?)\. +"`) // NOTE: also matches the opening " of the title
-	results := re.FindStringSubmatch(data)
-	if re.MatchString(data) {
+	results := authorRegExp.FindStringSubmatch(data)
+	if authorRegExp.MatchString(data) {
 		author = strings.TrimSpace(results[1])
 	}
-	str = re.ReplaceAllString(data, "") // NOTE: this also replaces the opening "
+	str = authorRegExp.ReplaceAllString(data, "") // NOTE: this also replaces the opening "
 	str = strings.TrimSpace(str)
 	// NOTE: add the " we removed above, but sometimes there is no author, so check first
 	if len(str) > 0 && str[0] != '"' {
@@ -252,12 +271,11 @@ func (e textEntry) extractAuthor(data string) (author string, str string) {
 
 // extractTitle from the text, based on its position in the text.
 func (e textEntry) extractTitle(data string) (title string, str string) {
-	re := regexp.MustCompile(`^"([^"]+?)"\.? *`)
-	results := re.FindStringSubmatch(data)
-	if re.MatchString(data) {
+	results := titleRegExp.FindStringSubmatch(data)
+	if titleRegExp.MatchString(data) {
 		title = strings.TrimSpace(results[1])
 	}
-	str = re.ReplaceAllString(data, "")
+	str = titleRegExp.ReplaceAllString(data, "")
 	str = strings.TrimSpace(str)
 
 	return
@@ -265,9 +283,8 @@ func (e textEntry) extractTitle(data string) (title string, str string) {
 
 // extractPublisher from the text, based on its position in the text.
 func (e textEntry) extractPublisher(data string) (pub Publisher, str string) {
-	re := regexp.MustCompile(`^\(([^)]+?)\)(?:, *)?|^([^:]+?): *`)
-	results := re.FindStringSubmatch(data)
-	if re.MatchString(data) {
+	results := publisherRegExp.FindStringSubmatch(data)
+	if publisherRegExp.MatchString(data) {
 		match := results[1]
 		if len(match) == 0 {
 			match = results[2]
@@ -283,16 +300,15 @@ func (e textEntry) extractPublisher(data string) (pub Publisher, str string) {
 			pub.City = parts
 		}
 	}
-	data = re.ReplaceAllString(data, "")
+	data = publisherRegExp.ReplaceAllString(data, "")
 	data = strings.TrimSpace(data)
 
 	// now extract the publisher name
-	re = regexp.MustCompile(`^([^,]+)(?:, *)?`)
-	results = re.FindStringSubmatch(data)
-	if re.MatchString(data) {
+	results = publisherNameRegEx.FindStringSubmatch(data)
+	if publisherNameRegEx.MatchString(data) {
 		pub.Name = strings.TrimSpace(results[1])
 	}
-	str = re.ReplaceAllString(data, "")
+	str = publisherNameRegEx.ReplaceAllString(data, "")
 	str = strings.TrimSpace(str)
 
 	return
@@ -301,12 +317,11 @@ func (e textEntry) extractPublisher(data string) (pub Publisher, str string) {
 // extractNotes from the text, based on its position in the text.
 // NOTE: expected to always be last item
 func (e textEntry) extractNotes(data string) (note string, str string) {
-	re := regexp.MustCompile(`\((.+?)\)$`)
-	results := re.FindStringSubmatch(data)
-	if re.MatchString(data) {
+	results := notesRegExp.FindStringSubmatch(data)
+	if notesRegExp.MatchString(data) {
 		note = strings.TrimSpace(results[1])
 	}
-	str = re.ReplaceAllString(data, "")
+	str = notesRegExp.ReplaceAllString(data, "")
 	str = strings.TrimSpace(str)
 
 	return
@@ -314,31 +329,28 @@ func (e textEntry) extractNotes(data string) (note string, str string) {
 
 // Remove wrapping braces (only a _few_ entries are wrapped in braces)
 func (e textEntry) cleanSurroundingBraces(data string) string {
-	re := regexp.MustCompile(`^\((.+?)\)$`)
-	results := re.FindStringSubmatch(data)
-	if !re.MatchString(data) {
+	results := bracesRegExp.FindStringSubmatch(data)
+	if !bracesRegExp.MatchString(data) {
 		return data
 	}
 	result := strings.TrimSpace(results[1])
-	data = re.ReplaceAllString(data, result)
+	data = bracesRegExp.ReplaceAllString(data, result)
 	return strings.TrimSpace(data)
 }
 
 // Remove random items (e.g. `(BK)`, `NONE`) from data.
 func (e textEntry) cleanRandomText(data string) string {
-	re := regexp.MustCompile(`(?i), *(?:\(BK\)|\(HB\)|\(MG\)|\(NP\)|\(Novel\)|NONE|Pg\. N/?A|\(tme\d+\))`)
-	data = re.ReplaceAllString(data, "")
+	data = randomTextRegExp.ReplaceAllString(data, "")
 	return strings.TrimSpace(data)
 }
 
 // extractIn from the text, based on the key
 func (e textEntry) extractIn(data string) (in string, str string) {
-	re := regexp.MustCompile(`In: "(.+?)"(?:, *)?`)
-	results := re.FindStringSubmatch(data)
-	if re.MatchString(data) {
+	results := inRegExp.FindStringSubmatch(data)
+	if inRegExp.MatchString(data) {
 		in = strings.TrimSpace(results[1])
 	}
-	str = re.ReplaceAllString(data, "")
+	str = inRegExp.ReplaceAllString(data, "")
 	str = strings.TrimSpace(str)
 
 	return
@@ -346,12 +358,11 @@ func (e textEntry) extractIn(data string) (in string, str string) {
 
 // extractISBN from the text, based on the key
 func (e textEntry) extractISBN(data string) (isbn string, str string) {
-	re := regexp.MustCompile(`, *IS[BS]N(?:-\d\d)?: ([0-9X-]+)`)
-	results := re.FindStringSubmatch(data)
-	if re.MatchString(data) {
+	results := isbnRegExp.FindStringSubmatch(data)
+	if isbnRegExp.MatchString(data) {
 		isbn = strings.TrimSpace(results[1])
 	}
-	str = re.ReplaceAllString(data, "")
+	str = isbnRegExp.ReplaceAllString(data, "")
 	str = strings.TrimSpace(str)
 
 	return
@@ -359,13 +370,12 @@ func (e textEntry) extractISBN(data string) (isbn string, str string) {
 
 // extractPageCount from the text, based on the `Pg.` key
 func (e textEntry) extractPageCount(data string) (pages int, str string) {
-	re := regexp.MustCompile(`, *Pg. *([0-9]+)`)
-	results := re.FindStringSubmatch(data)
-	if re.MatchString(data) {
+	results := pageCountRegExp.FindStringSubmatch(data)
+	if pageCountRegExp.MatchString(data) {
 		count := strings.TrimSpace(results[1])
 		pages, _ = strconv.Atoi(count)
 	}
-	str = re.ReplaceAllString(data, "")
+	str = pageCountRegExp.ReplaceAllString(data, "")
 	str = strings.TrimSpace(str)
 
 	return
@@ -374,17 +384,15 @@ func (e textEntry) extractPageCount(data string) (pages int, str string) {
 // extractPageRange from the text, based on the `Pg.` key
 func (e textEntry) extractPageRange(data string) (pages string, str string) {
 	// do some clean up first
-	re := regexp.MustCompile(`(?i), *Pg\. *(?:pg[ds]?[.;?]|pg>\.|p/ n°\.|p[a^]gs\.|Pages: *) *`)
-	if re.MatchString(data) {
-		data = re.ReplaceAllString(data, ", Pg.")
+	if pageRangeCleanupRegExp.MatchString(data) {
+		data = pageRangeCleanupRegExp.ReplaceAllString(data, ", Pg.")
 	}
 
-	re = regexp.MustCompile(`(?i), *Pg\. *((?:[a-z]?[0-9]+)(?:(?:-|\+|, *| *to *)[a-z]?[0-9]+)*)`)
-	results := re.FindStringSubmatch(data)
-	if re.MatchString(data) {
+	results := pageRangeRegExp.FindStringSubmatch(data)
+	if pageRangeRegExp.MatchString(data) {
 		pages = strings.TrimSpace(results[1])
 	}
-	str = re.ReplaceAllString(data, "")
+	str = pageRangeRegExp.ReplaceAllString(data, "")
 	str = strings.TrimSpace(str)
 
 	return
@@ -393,12 +401,11 @@ func (e textEntry) extractPageRange(data string) (pages string, str string) {
 // extractFirstPublishedDate from the text, based on a string match
 // NOTE: must be done before other date processing
 func (e textEntry) extractFirstPublishedDate(data string) (year int, str string) {
-	re := regexp.MustCompile(`(?i)First published.+?(\d\d\d\d).?`)
-	results := re.FindStringSubmatch(data)
-	if re.MatchString(data) {
+	results := firstPublishedRegExp.FindStringSubmatch(data)
+	if firstPublishedRegExp.MatchString(data) {
 		year, _ = strconv.Atoi(results[1])
 	}
-	str = re.ReplaceAllString(data, "")
+	str = firstPublishedRegExp.ReplaceAllString(data, "")
 	str = strings.TrimSpace(str)
 
 	return
@@ -406,9 +413,8 @@ func (e textEntry) extractFirstPublishedDate(data string) (year int, str string)
 
 // extractPublishedDate from the text, based on a string match
 func (e textEntry) extractPublishedDate(data string) (date Date, str string) {
-	re := regexp.MustCompile(`\(?((?:\d{1,2} +)?(?:[JFMASOND][a-z]+ +)?\d{4})\)?`)
-	results := re.FindStringSubmatch(data)
-	if re.MatchString(data) {
+	results := publishedRegExp.FindStringSubmatch(data)
+	if len(results) > 1 {
 		dates := strings.Split(results[1], " ")
 
 		// year will always be present, so just grab the last part
@@ -423,7 +429,7 @@ func (e textEntry) extractPublishedDate(data string) (date Date, str string) {
 			date.Month = e.monthAsNumber(dates[0])
 		}
 	}
-	str = re.ReplaceAllString(data, "")
+	str = publishedRegExp.ReplaceAllString(data, "")
 	str = strings.TrimSpace(str)
 
 	return
@@ -431,12 +437,11 @@ func (e textEntry) extractPublishedDate(data string) (date Date, str string) {
 
 // extractVolumeNumber from the text, based on the `Vol.` key
 func (e textEntry) extractVolumeNumber(data string) (vol string, str string) {
-	re := regexp.MustCompile(`, *Vol. *#? *([0-9]+)`)
-	results := re.FindStringSubmatch(data)
-	if re.MatchString(data) {
+	results := volumeNumberRegExp.FindStringSubmatch(data)
+	if volumeNumberRegExp.MatchString(data) {
 		vol = strings.TrimSpace(results[1])
 	}
-	str = re.ReplaceAllString(data, "")
+	str = volumeNumberRegExp.ReplaceAllString(data, "")
 	str = strings.TrimSpace(str)
 
 	return
@@ -444,12 +449,11 @@ func (e textEntry) extractVolumeNumber(data string) (vol string, str string) {
 
 // extractIssueNumber from the text, based on the `Iss.` key
 func (e textEntry) extractIssueNumber(data string) (issue string, str string) {
-	re := regexp.MustCompile(`, *Iss. *#? *([0-9]+)`)
-	results := re.FindStringSubmatch(data)
-	if re.MatchString(data) {
+	results := issueNumberRegExp.FindStringSubmatch(data)
+	if issueNumberRegExp.MatchString(data) {
 		issue = strings.TrimSpace(results[1])
 	}
-	str = re.ReplaceAllString(data, "")
+	str = issueNumberRegExp.ReplaceAllString(data, "")
 	str = strings.TrimSpace(str)
 
 	return
