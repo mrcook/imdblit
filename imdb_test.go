@@ -32,6 +32,11 @@ MOVI: "The Last of the Mohicans" (1971)
 NOVL: Cooper, James Fenimore. "Last of the Mohicans, The". Bantam New York, 1982, ISBN-10: 0553213296, (originally published 1826)
 
 -------------------------------------------------------------------------------
+MOVI: Mansfield Park (1983)
+
+NOVL: Austen, Jane. "Mansfield Park"
+
+-------------------------------------------------------------------------------
 MOVI: Mansfield Park (2007) (TV)
 
 NOVL: Austen, Jane. "Mansfield Park"
@@ -49,8 +54,8 @@ func TestBasicProcessing(t *testing.T) {
 	db := imdb.NewIMDB(file)
 	_ = db.FindMovieAdaptations("Mansfield Park", "Jane Austen")
 
-	if db.TotalRecordCount() != 4 {
-		t.Errorf("expected a total of 4 movie records to have been processed, got %d", db.TotalRecordCount())
+	if db.TotalRecordCount() != 5 {
+		t.Errorf("expected a total of 5 movie records to have been processed, got %d", db.TotalRecordCount())
 	}
 
 	date := db.DatabaseCreatedOn().String()
@@ -65,14 +70,14 @@ func TestMovieAdaptations(t *testing.T) {
 
 	movies := db.FindMovieAdaptations("Mansfield Park", "Jane Austen")
 
-	if len(movies) != 1 {
-		t.Fatalf("expected 1 movie to be found, got %d", len(movies))
+	if len(movies) != 2 {
+		t.Fatalf("expected 2 movies to be found, got %d", len(movies))
 	}
 
 	mov := movies[0]
 
 	if mov.Title != "Mansfield Park" {
-		t.Errorf("unexpected movie title, got: %s", movies[0].Title)
+		t.Errorf("unexpected movie title, got: %s", mov.Title)
 	}
 	if mov.Year != 2007 {
 		t.Errorf("unexpected movie year, got: %d", mov.Year)
