@@ -4,11 +4,14 @@ package imdblit
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
 	"io"
 	"sort"
 	"strings"
 	"time"
+
+	"golang.org/x/text/encoding/charmap"
 
 	"github.com/mrcook/imdblit/movie"
 )
@@ -28,13 +31,13 @@ func NewIMDB(r io.Reader) *IMDB {
 
 // DatabaseCreatedOn will contain the datetime that the DB file was generated,
 // once the .list has been parsed.
-func (db IMDB) DatabaseCreatedOn() time.Time {
+func (db *IMDB) DatabaseCreatedOn() time.Time {
 	return db.createdOn
 }
 
 // TotalRecordCount will contain the total number of records found in the file,
 // once the .list has been parsed.
-func (db IMDB) TotalRecordCount() int {
+func (db *IMDB) TotalRecordCount() int {
 	return db.totalRecords
 }
 
@@ -50,6 +53,7 @@ func (db *IMDB) FindMovieAdaptations(title, author string) []movie.Movie {
 
 	scanner := bufio.NewScanner(db.r)
 	if err := db.readDBHeader(scanner); err != nil {
+		fmt.Printf("Error: reading IMDB database failed %s", err)
 		return movies
 	}
 
@@ -58,18 +62,15 @@ func (db *IMDB) FindMovieAdaptations(title, author string) []movie.Movie {
 	done := false
 	for !done {
 		done = !scanner.Scan()
-		line := scanner.Text()
-		if line == recordDivider {
-			db.totalRecords++
-		}
+		line := db.decodeWindows1252(scanner.Text())
 
-		// if this is the very first divider in the list, ignore it and read the next line
-		if line == recordDivider && db.totalRecords == 1 {
+		// the very first divider in the list, ignore it
+		if line == recordDivider && len(recordText) == 0 {
 			continue
 		}
 
 		// if a divider for the next movie entry is reached, check if the
-		// current movie entry is valid, and add to list if so.
+		// current entry is an adaptation and add to list.
 		if done || line == recordDivider {
 			mov := movie.Movie{}
 			movie.UnmarshallBooks(recordText, &mov)
@@ -79,6 +80,7 @@ func (db *IMDB) FindMovieAdaptations(title, author string) []movie.Movie {
 			}
 
 			recordText = ""
+			db.totalRecords++
 		} else {
 			recordText += line + "\n"
 		}
@@ -116,4 +118,22 @@ func (db *IMDB) readDBHeader(scanner *bufio.Scanner) error {
 			return nil
 		}
 	}
+}
+
+// Decodes a Windows 1252 encoded string as UTF-8
+// Note: the official IMDB literature.list is encoded as Windows 1252 text
+func (db *IMDB) decodeWindows1252(text string) string {
+	if len(text) == 0 {
+		return text
+	}
+
+	reader := strings.NewReader(text)
+	decoded := charmap.Windows1252.NewDecoder().Reader(reader)
+
+	var buf bytes.Buffer
+	if _, err := io.Copy(&buf, decoded); err == nil {
+		return buf.String()
+	}
+
+	return text
 }

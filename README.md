@@ -2,7 +2,9 @@
 
 A small library for processing an exported IMDB `literature.list` database file.
 
-Currently, this library is useful for fetching movies that are adaptations of novels.
+This library was created for my own ebook toolchain, so it contains features
+only for that purpose; fetching movies that are adaptations of novels.
+
 
 ## Usage
 
@@ -23,10 +25,9 @@ func main() {
 	if err != nil {
 		return
 	}
-	db := imdblit.New(imdbFile)
+	db := imdblit.NewIMDB(imdbFile)
 
-	movies := db.MovieAdaptations("A Christmas Carol", "Charles Dickens")
-
+	movies := db.FindMovieAdaptations("A Christmas Carol", "Charles Dickens")
 	for _, movie := range movies {
 		fmt.Printf("%d: %s\n", movie.Year, movie.Title)
 	}
@@ -36,7 +37,7 @@ func main() {
 
 ## LICENSE
 
-Copyright (c) 2018-2021 Michael R. Cook. All rights reserved.
+Copyright (c) 2018-2022 Michael R. Cook. All rights reserved.
 
 This work is licensed under the terms of the MIT license.
 For a copy, see <https://opensource.org/licenses/MIT>.

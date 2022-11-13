@@ -1,6 +1,14 @@
 # IMDBlit Changelog
 
 
+## 0.8.0 (2022-11-13)
+
+The official IMDB `lterature.list` file is encoded as Windows 1252 so each
+line in the file is now decoded before being processed.
+
+That means there is now a dependency on the `golang.org/x/text` package.
+
+
 ## 0.7.0 (2021-04-05)
 
 Major performance improvement during FindMovieAdaptations: ~3.5x faster!

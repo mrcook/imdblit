@@ -7,6 +7,7 @@ import (
 	imdb "github.com/mrcook/imdblit"
 )
 
+// TODO: encode as Windows 1252, as that's the encoding of the official IMDB literature.list file.
 var imdbText = `CRC: 0x527C5E79  File: literature.list  Date: Fri Dec 22 00:00:00 2017
 
 Copyright 1991-2017 The Internet Movie Database Ltd. All rights reserved.

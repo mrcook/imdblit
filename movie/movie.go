@@ -128,7 +128,7 @@ func Unmarshall(data string, movie *Movie) {
 	entry.screenplays(movie)
 }
 
-// UnmarshallBook processes only the record entries types that are types of books.
+// UnmarshallBooks processes only the record entries types that are types of books.
 func UnmarshallBooks(data string, movie *Movie) {
 	entry := extractEntryDataTypes(data)
 
