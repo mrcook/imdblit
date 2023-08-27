@@ -84,3 +84,30 @@ func TestMovieAdaptations(t *testing.T) {
 		t.Errorf("unexpected movie year, got: %d", mov.Year)
 	}
 }
+
+func TestIMDB_ExtractAll(t *testing.T) {
+	file := bytes.NewBuffer([]byte(imdbText)) // Fake a file read
+	db := imdb.NewIMDB(file)
+
+	movies := db.ExtractAll()
+
+	if len(movies) != 5 {
+		t.Fatalf("expected 5 movies to be found, got %d", len(movies))
+	}
+
+	mov := movies[0]
+	if mov.Title != "Dissonances" {
+		t.Errorf("unexpected movie title, got: %s", mov.Title)
+	}
+	if mov.Year != 2003 {
+		t.Errorf("unexpected movie year, got: %d", mov.Year)
+	}
+
+	mov = movies[4]
+	if mov.Title != "Mansion of the Doomed" {
+		t.Errorf("unexpected movie title, got: %s", mov.Title)
+	}
+	if mov.Year != 1976 {
+		t.Errorf("unexpected movie year, got: %d", mov.Year)
+	}
+}

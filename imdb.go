@@ -16,6 +16,8 @@ import (
 	"github.com/mrcook/imdblit/movie"
 )
 
+const recordDivider = "-------------------------------------------------------------------------------"
+
 // An IMDB reads and processes movie records values from an input stream.
 type IMDB struct {
 	r io.Reader
@@ -41,14 +43,49 @@ func (db *IMDB) TotalRecordCount() int {
 	return db.totalRecords
 }
 
+// ExtractAll processes the DB and returns all movies and associated data.
+func (db *IMDB) ExtractAll() []movie.Movie {
+	var movies []movie.Movie
+
+	scanner := bufio.NewScanner(db.r)
+	if err := db.readDBHeader(scanner); err != nil {
+		fmt.Printf("Error: reading IMDB database failed %s", err)
+		return movies
+	}
+
+	recordText := ""
+
+	done := false
+	for !done {
+		done = !scanner.Scan()
+		line := db.decodeWindows1252(scanner.Text())
+
+		// the very first divider in the list, ignore it
+		if line == recordDivider && len(recordText) == 0 {
+			continue
+		}
+
+		// if a divider for the next movie entry is reached, add to the slice
+		if done || line == recordDivider {
+			mov := movie.Movie{}
+			movie.UnmarshallBooks(recordText, &mov)
+			movies = append(movies, mov)
+			recordText = ""
+			db.totalRecords++
+		} else {
+			recordText += line + "\n"
+		}
+	}
+
+	return movies
+}
+
 // FindMovieAdaptations processes the DB and returns movies that are
 // adaptations of the given book title/author.
 //
 // The search will only parse the book types: ADPT, BOOK, and NOVL, which will
 // speed up the processing considerably.
 func (db *IMDB) FindMovieAdaptations(title, author string) []movie.Movie {
-	const recordDivider = "-------------------------------------------------------------------------------"
-
 	var movies []movie.Movie
 
 	scanner := bufio.NewScanner(db.r)
