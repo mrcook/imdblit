@@ -44,13 +44,12 @@ func (db *IMDB) TotalRecordCount() int {
 }
 
 // ExtractAll processes the DB and returns all movies and associated data.
-func (db *IMDB) ExtractAll() []movie.Movie {
+func (db *IMDB) ExtractAll() ([]movie.Movie, error) {
 	var movies []movie.Movie
 
 	scanner := bufio.NewScanner(db.r)
 	if err := db.readDBHeader(scanner); err != nil {
-		fmt.Printf("Error: reading IMDB database failed %s", err)
-		return movies
+		return movies, err
 	}
 
 	recordText := ""
@@ -68,7 +67,7 @@ func (db *IMDB) ExtractAll() []movie.Movie {
 		// if a divider for the next movie entry is reached, add to the slice
 		if done || line == recordDivider {
 			mov := movie.Movie{}
-			movie.UnmarshallBooks(recordText, &mov)
+			movie.Unmarshall(recordText, &mov)
 			movies = append(movies, mov)
 			recordText = ""
 			db.totalRecords++
@@ -77,7 +76,7 @@ func (db *IMDB) ExtractAll() []movie.Movie {
 		}
 	}
 
-	return movies
+	return movies, nil
 }
 
 // FindMovieAdaptations processes the DB and returns movies that are
@@ -85,13 +84,12 @@ func (db *IMDB) ExtractAll() []movie.Movie {
 //
 // The search will only parse the book types: ADPT, BOOK, and NOVL, which will
 // speed up the processing considerably.
-func (db *IMDB) FindMovieAdaptations(title, author string) []movie.Movie {
+func (db *IMDB) FindMovieAdaptations(title, author string) ([]movie.Movie, error) {
 	var movies []movie.Movie
 
 	scanner := bufio.NewScanner(db.r)
 	if err := db.readDBHeader(scanner); err != nil {
-		fmt.Printf("Error: reading IMDB database failed %s", err)
-		return movies
+		return movies, err
 	}
 
 	recordText := ""
@@ -128,7 +126,7 @@ func (db *IMDB) FindMovieAdaptations(title, author string) []movie.Movie {
 		return movies[i].Year > movies[j].Year
 	})
 
-	return movies
+	return movies, nil
 }
 
 // Reads the header section of the database file, reading the created on datetime,
@@ -136,7 +134,7 @@ func (db *IMDB) FindMovieAdaptations(title, author string) []movie.Movie {
 func (db *IMDB) readDBHeader(scanner *bufio.Scanner) error {
 	for {
 		if !scanner.Scan() {
-			return fmt.Errorf("scanner unexectedly stopped")
+			return fmt.Errorf("reading database header file incomplete")
 		}
 
 		line := scanner.Text()
@@ -150,7 +148,7 @@ func (db *IMDB) readDBHeader(scanner *bufio.Scanner) error {
 		if line == "LITERATURE LIST" {
 			// read the next line, which is lots of ====, before returning
 			if !scanner.Scan() {
-				return fmt.Errorf("scanner unexectedly stopped")
+				return fmt.Errorf("unable to read line after LITERATURE LIST in database header")
 			}
 			return nil
 		}

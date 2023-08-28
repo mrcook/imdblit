@@ -23,11 +23,14 @@ import (
 func main() {
 	imdbFile, err := os.Open("./literature.list")
 	if err != nil {
-		return
+		panic(err)
 	}
 	db := imdblit.NewIMDB(imdbFile)
 
-	movies := db.FindMovieAdaptations("A Christmas Carol", "Charles Dickens")
+	movies, err := db.FindMovieAdaptations("A Christmas Carol", "Charles Dickens")
+	if err != nil {
+		panic(err)
+	}
 	for _, movie := range movies {
 		fmt.Printf("%d: %s\n", movie.Year, movie.Title)
 	}
@@ -37,7 +40,7 @@ func main() {
 
 ## LICENSE
 
-Copyright (c) 2018-2022 Michael R. Cook. All rights reserved.
+Copyright (c) 2018-2023 Michael R. Cook. All rights reserved.
 
 This work is licensed under the terms of the MIT license.
 For a copy, see <https://opensource.org/licenses/MIT>.

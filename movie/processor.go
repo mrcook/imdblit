@@ -9,22 +9,25 @@ import (
 // compile all regular expression up front for major performance improvements
 var (
 	titleDetailsRegExp     = regexp.MustCompile(`\A(.*?) \(([0-9?]{4})(?:/([IVX]+))?\)`)
-	authorRegExp           = regexp.MustCompile(`^(.+?)\. +"`) // NOTE: also matches the opening " of the title
+	seriesEpisodeInBraces  = regexp.MustCompile(`{\(#(\d+)\.(\d+)\)}\z`)         // {(#1.6)}
+	seriesInfo             = regexp.MustCompile(`{(.+?)? +\(#(\d+)\.(\d+)\)}\z`) // {Venjança (#1.6)}
+	seriesNameOnly         = regexp.MustCompile(`{(.+?)}\z`)                     // {A Clockwork Orange im Ballhof}
+	authorRegExp           = regexp.MustCompile(`^(.+?)\. +"`)                   // NOTE: also matches the opening " of the title
 	titleRegExp            = regexp.MustCompile(`^"([^"]+?)"\.? *`)
 	publisherRegExp        = regexp.MustCompile(`^\(([^)]+?)\)(?:, *)?|^([^:]+?): *`)
 	publisherNameRegEx     = regexp.MustCompile(`^([^,]+)(?:, *)?`)
 	notesRegExp            = regexp.MustCompile(`\((.+?)\)$`)
 	bracesRegExp           = regexp.MustCompile(`^\((.+?)\)$`)
 	randomTextRegExp       = regexp.MustCompile(`(?i), *(?:\(BK\)|\(HB\)|\(MG\)|\(NP\)|\(Novel\)|NONE|Pg\. N/?A|\(tme\d+\))`)
-	inRegExp               = regexp.MustCompile(`In: "(.+?)"(?:, *)?`)
+	inRegExp               = regexp.MustCompile(`In: "([^"]+?)"(?:, *)?`)
 	isbnRegExp             = regexp.MustCompile(`, *IS[BS]N(?:-\d\d)?: ([0-9X-]+)`)
 	pageCountRegExp        = regexp.MustCompile(`, *Pg. *([0-9]+)`)
 	pageRangeCleanupRegExp = regexp.MustCompile(`(?i), *Pg\. *(?:pg[ds]?[.;?]|pg>\.|p/ n°\.|p[a^]gs\.|Pages: *) *`)
 	pageRangeRegExp        = regexp.MustCompile(`(?i), *Pg\. *((?:[a-z]?[0-9]+)(?:(?:-|\+|, *| *to *)[a-z]?[0-9]+)*)`)
 	firstPublishedRegExp   = regexp.MustCompile(`(?i)First published.+?(\d\d\d\d).?`)
 	publishedRegExp        = regexp.MustCompile(`\(?((?:\d{1,2} +)?(?:[JFMASOND][a-z]+ +)?\d{4})\)?`)
-	volumeNumberRegExp     = regexp.MustCompile(`, *Vol. *#? *([0-9]+)`)
-	issueNumberRegExp      = regexp.MustCompile(`, *Iss. *#? *([0-9]+)`)
+	volumeNumberRegExp     = regexp.MustCompile(`, *Vol.[# ]*([^,]+),`)
+	issueNumberRegExp      = regexp.MustCompile(`, *Iss.[# ]*([^,]+),`)
 )
 
 type Key string
@@ -92,11 +95,11 @@ func (e textEntry) movieTitleDetails(movie *Movie) {
 		return
 	}
 
-	m := e[MOVI][0]
+	m := e[MOVI][0] // should never be more than one entry
 	results := titleDetailsRegExp.FindStringSubmatch(m)
 
 	if len(results) >= 1 {
-		movie.Title = results[1]
+		movie.Title = e.cleanTitle(results[1])
 	}
 
 	if len(results) >= 2 {
@@ -104,12 +107,55 @@ func (e textEntry) movieTitleDetails(movie *Movie) {
 	}
 
 	if len(results) >= 3 {
-		movie.Month = results[3]
+		movie.Month = e.monthFromRomanNumeral(results[3])
 	}
 
 	if strings.Contains(m, "(TV)") {
 		movie.TV = true
 	}
+
+	e.seriesAndSubtitle(movie, m)
+}
+
+func (e textEntry) cleanTitle(title string) string {
+	if title[0] == '"' && title[len(title)-1] == '"' {
+		return title[1 : len(title)-1]
+	}
+	return title
+}
+
+func (e textEntry) seriesAndSubtitle(movie *Movie, movieLine string) {
+	if strings.HasSuffix(movieLine, "{{SUSPENDED}}") {
+		return
+	}
+
+	// extract subtitle and series.episode info: `{Venjança (#1.6)}`
+	matches := seriesInfo.FindStringSubmatch(movieLine)
+	if len(matches) == 4 {
+		movie.SeriesName = matches[1]
+		movie.SeriesNumber, _ = strconv.Atoi(matches[2])
+		movie.EpisodeNumber, _ = strconv.Atoi(matches[3])
+		return
+	}
+
+	// extract series.episode info: `{(#1.6)}`
+	matches = seriesEpisodeInBraces.FindStringSubmatch(movieLine)
+	if len(matches) == 3 {
+		movie.SeriesNumber, _ = strconv.Atoi(matches[1])
+		movie.EpisodeNumber, _ = strconv.Atoi(matches[2])
+		return
+	}
+
+	// extract series info: `{A Clockwork Orange im Ballhof}`
+	matches = seriesNameOnly.FindStringSubmatch(movieLine)
+	if len(matches) == 2 {
+		movie.SeriesName = matches[1]
+		return
+	}
+}
+
+func (e textEntry) monthFromRomanNumeral(romanNumeral string) int {
+	return monthRomanToInt[strings.ToLower(romanNumeral)]
 }
 
 func (e textEntry) adaptations(movie *Movie) {
@@ -147,10 +193,9 @@ func (e textEntry) bookParser(book *Book, data string) {
 	data = e.cleanSurroundingBraces(data)
 	data = e.cleanRandomText(data)
 
-	// TODO: should these values be used?
-	_, data = e.extractIn(data)
-	_, data = e.extractVolumeNumber(data)
-	_, data = e.extractIssueNumber(data)
+	book.MiscInfo, data = e.extractIn(data)
+	book.Volume, data = e.extractVolumeNumber(data)
+	book.Issue, data = e.extractIssueNumber(data)
 
 	book.ISBN, data = e.extractISBN(data)
 	book.PageCount, data = e.extractPageCount(data)
@@ -183,7 +228,7 @@ func (e textEntry) monthAsNumber(month string) int {
 func (e textEntry) critiques(movie *Movie) {
 	for _, text := range e[CRIT] {
 		novel := Critique{}
-		e.publicationParser(&novel.publication, text)
+		e.publicationParser(&novel.Publication, text)
 		movie.Critiques = append(movie.Critiques, novel)
 	}
 }
@@ -191,7 +236,7 @@ func (e textEntry) critiques(movie *Movie) {
 func (e textEntry) essays(movie *Movie) {
 	for _, text := range e[ESSY] {
 		essay := Essay{}
-		e.publicationParser(&essay.publication, text)
+		e.publicationParser(&essay.Publication, text)
 		movie.Essays = append(movie.Essays, essay)
 	}
 }
@@ -199,7 +244,7 @@ func (e textEntry) essays(movie *Movie) {
 func (e textEntry) interviews(movie *Movie) {
 	for _, text := range e[IVIW] {
 		interview := Interview{}
-		e.publicationParser(&interview.publication, text)
+		e.publicationParser(&interview.Publication, text)
 		movie.Interviews = append(movie.Interviews, interview)
 	}
 }
@@ -207,7 +252,7 @@ func (e textEntry) interviews(movie *Movie) {
 func (e textEntry) others(movie *Movie) {
 	for _, text := range e[OTHR] {
 		others := Other{}
-		e.publicationParser(&others.publication, text)
+		e.publicationParser(&others.Publication, text)
 		movie.Others = append(movie.Others, others)
 	}
 }
@@ -215,7 +260,7 @@ func (e textEntry) others(movie *Movie) {
 func (e textEntry) productionProtocols(movie *Movie) {
 	for _, text := range e[PROT] {
 		protocol := ProductionProtocol{}
-		e.publicationParser(&protocol.publication, text)
+		e.publicationParser(&protocol.Publication, text)
 		movie.ProductionProtocols = append(movie.ProductionProtocols, protocol)
 	}
 }
@@ -223,7 +268,7 @@ func (e textEntry) productionProtocols(movie *Movie) {
 func (e textEntry) screenplays(movie *Movie) {
 	for _, text := range e[SCRP] {
 		screenplay := Screenplay{}
-		e.publicationParser(&screenplay.publication, text)
+		e.publicationParser(&screenplay.Publication, text)
 		movie.Screenplays = append(movie.Screenplays, screenplay)
 	}
 }
@@ -232,7 +277,7 @@ func (e textEntry) screenplays(movie *Movie) {
 // Anything that has a knowable marker (e.g. `Pg.`, `ISSNN:`) should be
 // extracted first, leaving only positional items (no knowable marker,
 // such as author names), to be done last.
-func (e textEntry) publicationParser(pub *publication, data string) {
+func (e textEntry) publicationParser(pub *Publication, data string) {
 	data = e.cleanSurroundingBraces(data)
 	data = e.cleanRandomText(data)
 
@@ -294,10 +339,19 @@ func (e textEntry) extractPublisher(data string) (pub Publisher, str string) {
 		for i, l := range parts {
 			loc[i] = strings.TrimSpace(l)
 		}
-		pub.Country = loc[len(loc)-1]
-		if len(loc) >= 2 {
-			parts := strings.Join(loc[0:len(loc)-1], ", ")
-			pub.City = parts
+		switch len(loc) {
+		case 3:
+			pub.City = loc[0]
+			pub.State = loc[1]
+			pub.Country = loc[2]
+		case 2:
+			pub.City = loc[0]
+			pub.Country = loc[1]
+		case 1:
+			pub.Country = loc[0]
+		default:
+			pub.Country = loc[len(loc)-1]
+			pub.City = strings.Join(loc[0:len(loc)-1], ", ")
 		}
 	}
 	data = publisherRegExp.ReplaceAllString(data, "")
@@ -441,8 +495,21 @@ func (e textEntry) extractVolumeNumber(data string) (vol string, str string) {
 	if volumeNumberRegExp.MatchString(data) {
 		vol = strings.TrimSpace(results[1])
 	}
-	str = volumeNumberRegExp.ReplaceAllString(data, "")
+	str = volumeNumberRegExp.ReplaceAllString(data, ",") // regex captures final comma, so replace it
 	str = strings.TrimSpace(str)
+
+	vol = strings.TrimSuffix(vol, "th")
+
+	low := strings.ToLower(vol)
+	if low == "first" || vol == "i" || vol == "one" || strings.HasPrefix(vol, "1 (of") {
+		vol = "1"
+	} else if low == "n/a" {
+		vol = ""
+	}
+	if len(vol) > 3 {
+		vol = ""
+	}
+	vol = strings.TrimSpace(vol)
 
 	return
 }
@@ -453,7 +520,7 @@ func (e textEntry) extractIssueNumber(data string) (issue string, str string) {
 	if issueNumberRegExp.MatchString(data) {
 		issue = strings.TrimSpace(results[1])
 	}
-	str = issueNumberRegExp.ReplaceAllString(data, "")
+	str = issueNumberRegExp.ReplaceAllString(data, ",") // regex captures final comma, so replace it
 	str = strings.TrimSpace(str)
 
 	return

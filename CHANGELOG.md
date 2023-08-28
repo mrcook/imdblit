@@ -1,6 +1,14 @@
 # IMDBlit Changelog
 
 
+## 0.9.0 (2023-08-28)
+
+* Extract more data from movies (series/episode info), and books (volume/issue).
+* Change the movie `Month` to be an `int`, and convert Roman numerals during processing.
+* Add an `ExtractAll` function that returns all movies from the database file.
+* `FindMovieAdaptations` now also returns an error. 
+
+
 ## 0.8.0 (2022-11-13)
 
 The official IMDB `lterature.list` file is encoded as Windows 1252 so each

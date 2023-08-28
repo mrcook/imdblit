@@ -9,14 +9,15 @@ import (
 type BookTableData struct {
 	text, title, author, isbn, note string
 	pageCount, firstPublished       int
-	publisher                       [3]string // name, city, country
+	volume, issue                   string
+	publisher                       [4]string // name, city, country
 	date                            [3]int    // year, month, day
 }
 
 type PublicationTableData struct {
 	text, author, title, pages       string
 	publication, volume, issue, issn string
-	publisher                        [3]string // name, city, country
+	publisher                        [4]string // name, city, country
 	date                             [3]int    // year, month, day
 }
 
@@ -32,8 +33,8 @@ func TestMovieTitleDetails(t *testing.T) {
 	if mov.Year != 1954 {
 		t.Fatalf("expected year as 1954, got %d", mov.Year)
 	}
-	if mov.Month != "XI" {
-		t.Fatalf("expected month XI, got %s", mov.Month)
+	if mov.Month != 11 {
+		t.Fatalf("expected month as 11, got %d", mov.Month)
 	}
 	if !mov.TV {
 		t.Fatalf("expected TV to be true")
@@ -56,6 +57,77 @@ MOVI: The Creature from the Black Lagoon (1976)`
 	}
 }
 
+func TestMovieQuotedTitles(t *testing.T) {
+	mov := movie.Movie{}
+
+	entry := `MOVI: "A Little Princess" (1973)`
+	movie.Unmarshall(entry, &mov)
+
+	if mov.Title != "A Little Princess" {
+		t.Fatalf("expected title to be extracted, got: '%s'", mov.Title)
+	}
+}
+
+func TestMovieSeriesInfo(t *testing.T) {
+	mov := movie.Movie{}
+
+	entry := `MOVI: "1,000 Places to See Before You Die" (2007) {Australia (#1.5)}`
+	movie.Unmarshall(entry, &mov)
+
+	if mov.Title != "1,000 Places to See Before You Die" {
+		t.Fatalf("expected title to be extracted, got: '%s'", mov.Title)
+	}
+	if mov.Year != 2007 {
+		t.Fatalf("expected year as 2007, got %d", mov.Year)
+	}
+	if mov.SeriesName != "Australia" {
+		t.Fatalf("expected series to be Australia, got %s", mov.SeriesName)
+	}
+	if mov.SeriesNumber != 1 {
+		t.Fatalf("expected series number of 1, got %d", mov.SeriesNumber)
+	}
+	if mov.EpisodeNumber != 5 {
+		t.Fatalf("expected episode number of 5, got %d", mov.EpisodeNumber)
+	}
+}
+
+func TestMovieSeriesName(t *testing.T) {
+	mov := movie.Movie{}
+
+	entry := `MOVI: "A Taste of Shakespeare" (1995) {King Lear}`
+	movie.Unmarshall(entry, &mov)
+
+	if mov.Title != "A Taste of Shakespeare" {
+		t.Fatalf("expected title to be extracted, got: '%s'", mov.Title)
+	}
+	if mov.Year != 1995 {
+		t.Fatalf("expected year as 1995, got %d", mov.Year)
+	}
+	if mov.SeriesName != "King Lear" {
+		t.Fatalf("expected series to be King Lear, got %s", mov.SeriesName)
+	}
+}
+
+func TestMovieSeriesEpisodes(t *testing.T) {
+	mov := movie.Movie{}
+
+	entry := `MOVI: "A Shared House" (2015) {(#1.4)}`
+	movie.Unmarshall(entry, &mov)
+
+	if mov.Title != "A Shared House" {
+		t.Fatalf("expected title to be extracted, got: '%s'", mov.Title)
+	}
+	if mov.Year != 2015 {
+		t.Fatalf("expected year as 2015, got %d", mov.Year)
+	}
+	if mov.SeriesNumber != 1 {
+		t.Fatalf("expected series number of 1, got %d", mov.SeriesNumber)
+	}
+	if mov.EpisodeNumber != 4 {
+		t.Fatalf("expected episode number of 4, got %d", mov.EpisodeNumber)
+	}
+}
+
 func TestAdaptations(t *testing.T) {
 	testItems := []BookTableData{
 		{
@@ -70,27 +142,27 @@ func TestAdaptations(t *testing.T) {
 			text:   `ADPT: Gardner, Craig Shaw. "Back to the Future Part III (Novelization of the screenplay by Bob Gale)". (London, UK), Berkley Books, Berkley Publishing Group, 1 June 1990, Pg. 248, (BK), ISBN-10: 042512240X, (uncredited novel by co-screenwriter Doe: https: //www.example.com/doe)`,
 			author: "Gardner, Craig Shaw", title: "Back to the Future Part III (Novelization of the screenplay by Bob Gale)",
 			isbn: "042512240X", note: "uncredited novel by co-screenwriter Doe: https: //www.example.com/doe",
-			pageCount: 248, publisher: [3]string{"Berkley Books", "London", "UK"}, date: [3]int{1990, 6, 1},
+			pageCount: 248, publisher: [4]string{"Berkley Books", "London", "", "UK"}, date: [3]int{1990, 6, 1},
 		},
 		{
 			text:   `ADPT: Siegfried Lenz. "Die Flut ist pünktlich". Hoffmann und Campe Verlag GmbH, (BK), (short story)`,
 			author: "Siegfried Lenz", title: "Die Flut ist pünktlich",
-			note: "short story", publisher: [3]string{"Hoffmann und Campe Verlag GmbH", "", ""},
+			note: "short story", publisher: [4]string{"Hoffmann und Campe Verlag GmbH", "", "", ""},
 		},
 		{
 			text:   `ADPT: Gary King. "Blind Rage: The Many Faces of Murder". In: "Amazon", Onyx Books (1995), (BK), (Novel), ISBN-13: 9780451405326`,
 			author: "Gary King", title: "Blind Rage: The Many Faces of Murder",
-			isbn: "9780451405326", publisher: [3]string{"Onyx Books"}, date: [3]int{1995},
+			isbn: "9780451405326", publisher: [4]string{"Onyx Books"}, date: [3]int{1995},
 		},
 		{
 			text:   `ADPT: Thomas Lee Howell. "Bully Boys". In: "Original novel" (USA), NONE, February 2010, Pg. 45, (BK)`,
 			author: "Thomas Lee Howell", title: "Bully Boys",
-			pageCount: 45, publisher: [3]string{"", "", "USA"}, date: [3]int{2010, 2, 0},
+			pageCount: 45, publisher: [4]string{"", "", "", "USA"}, date: [3]int{2010, 2, 0},
 		},
 		{
 			text:   `ADPT: Francisco Ibanez Talavera,. "Clever & Smart". (Germany), ConPart-Verlag (Condor Verlag), Vol. 1, 1972, (MG)`,
 			author: "Francisco Ibanez Talavera,", title: "Clever & Smart",
-			publisher: [3]string{"ConPart-Verlag (Condor Verlag)", "", "Germany"}, date: [3]int{1972},
+			publisher: [4]string{"ConPart-Verlag (Condor Verlag)", "", "", "Germany"}, date: [3]int{1972},
 		},
 	}
 
@@ -124,7 +196,10 @@ func TestAdaptations(t *testing.T) {
 		if a.Publisher.City != item.publisher[1] {
 			t.Errorf("(#%d) unexpected publisher city, got '%s'", i, a.Publisher.City)
 		}
-		if a.Publisher.Country != item.publisher[2] {
+		if a.Publisher.State != item.publisher[2] {
+			t.Errorf("(#%d) unexpected publisher state, got '%s'", i, a.Publisher.State)
+		}
+		if a.Publisher.Country != item.publisher[3] {
 			t.Errorf("(#%d) unexpected publisher country, got '%s'", i, a.Publisher.Country)
 		}
 		if a.Date.Year != item.date[0] {
@@ -142,20 +217,20 @@ func TestAdaptations(t *testing.T) {
 func TestBooks(t *testing.T) {
 	testItems := []BookTableData{
 		{
-			text:   `BOOK: Hickman, Roger. "Miklós Rózsa's Ben-Hur: A Film Score Guide". (Lanham, Maryland, USA), The Scarecrow Press, Inc., 2011, ISBN-13: 978-0-810-88100-4, (hb)`,
+			text:   `BOOK: Hickman, Roger. "Miklós Rózsa's Ben-Hur: A Film Score Guide". (Lanham, Maryland, USA), The Scarecrow Press, Inc., Vol. First, Iss. September, 2011, ISBN-13: 978-0-810-88100-4, (hb)`,
 			author: "Hickman, Roger", title: "Miklós Rózsa's Ben-Hur: A Film Score Guide",
-			isbn: "978-0-810-88100-4", publisher: [3]string{"The Scarecrow Press", "Lanham, Maryland", "USA"}, date: [3]int{2011},
+			isbn: "978-0-810-88100-4", publisher: [4]string{"The Scarecrow Press", "Lanham", "Maryland", "USA"}, date: [3]int{2011}, volume: "1", issue: "September",
 		},
 		{
-			text:   `BOOK: Norlander, Emil. "Anderssonskans Kalle". (Stockholm), Ardor, Iss. 12, 1933, Pg. 155, (BK), (First published in 1901. Illustrated by O. A-n (sign. för Oskar Andersson.)`,
+			text:   `BOOK: Norlander, Emil. "Anderssonskans Kalle". (Stockholm), Ardor, Vol. 4th, Iss. 12, 1933, Pg. 155, (BK), (First published in 1901. Illustrated by O. A-n (sign. för Oskar Andersson.)`,
 			author: "Norlander, Emil", title: "Anderssonskans Kalle",
 			pageCount: 155, note: "Illustrated by O. A-n (sign. för Oskar Andersson.",
-			publisher: [3]string{"Ardor", "", "Stockholm"}, date: [3]int{1933}, firstPublished: 1901,
+			publisher: [4]string{"Ardor", "", "", "Stockholm"}, date: [3]int{1933}, volume: "4", issue: "12", firstPublished: 1901,
 		},
 		{
 			text:   `BOOK: Cunningham, Douglas A., editor. "The San Francisco of Alfred Hitchcock's Vertigo: Place, Pilgrimage, and Commemoration". Lanham, MD: The Scarecrow Press, 2011, ISBN-10: 0810881225`,
 			author: "Cunningham, Douglas A., editor", title: "The San Francisco of Alfred Hitchcock's Vertigo: Place, Pilgrimage, and Commemoration",
-			isbn: "0810881225", publisher: [3]string{"The Scarecrow Press", "Lanham", "MD"}, date: [3]int{2011},
+			isbn: "0810881225", publisher: [4]string{"The Scarecrow Press", "Lanham", "", "MD"}, date: [3]int{2011},
 		},
 
 		// TODO: invalid parsing; inconsistent formatting compared to most other books. Is this common? Does it need handling?
@@ -163,7 +238,7 @@ func TestBooks(t *testing.T) {
 			text:   `BOOK: Mitchell, Charles. The Complete H.P. Lovecraft Filmography (Bibliographies and Indexes in the Performing Arts ). "New York: Greenwood Publishing Group". October 1, Iss. 26, 2001, Pg. 248, ISBN-10: 0313316414`,
 			author: "Mitchell, Charles. The Complete H.P. Lovecraft Filmography (Bibliographies and Indexes in the Performing Arts )", title: "New York: Greenwood Publishing Group",
 			pageCount: 248, isbn: "0313316414",
-			publisher: [3]string{`October 1`}, date: [3]int{2001},
+			publisher: [4]string{`October 1`}, date: [3]int{2001}, volume: "", issue: "26",
 		},
 	}
 
@@ -197,7 +272,10 @@ func TestBooks(t *testing.T) {
 		if b.Publisher.City != item.publisher[1] {
 			t.Errorf("(#%d) unexpected publisher city, got '%s'", i, b.Publisher.City)
 		}
-		if b.Publisher.Country != item.publisher[2] {
+		if b.Publisher.State != item.publisher[2] {
+			t.Errorf("(#%d) unexpected publisher state, got '%s'", i, b.Publisher.State)
+		}
+		if b.Publisher.Country != item.publisher[3] {
 			t.Errorf("(#%d) unexpected publisher country, got '%s'", i, b.Publisher.Country)
 		}
 		if b.Date.Year != item.date[0] {
@@ -208,6 +286,12 @@ func TestBooks(t *testing.T) {
 		}
 		if b.Date.Day != item.date[2] {
 			t.Errorf("(#%d) unexpected date day, got '%d'", i, b.Date.Day)
+		}
+		if b.Volume != item.volume {
+			t.Errorf("(#%d) unexpected volume, got '%s'", i, b.Volume)
+		}
+		if b.Issue != item.issue {
+			t.Errorf("(#%d) unexpected issue, got '%s'", i, b.Issue)
 		}
 		if b.FirstPublished != item.firstPublished {
 			t.Errorf("(#%d) unexpected first published year, got '%d'", i, b.FirstPublished)
@@ -225,7 +309,7 @@ func TestNovels(t *testing.T) {
 			text:   `NOVL: Wyndham, John. "Midwich Cuckoos, The". (London, England, UK), Michael Joseph Ltd., December 1957, Pg. 239, (BK), ISBN-10: 0345299116`,
 			author: "Wyndham, John", title: "Midwich Cuckoos, The",
 			pageCount: 239, isbn: "0345299116",
-			publisher: [3]string{"Michael Joseph Ltd.", "London, England", "UK"}, date: [3]int{1957, 12},
+			publisher: [4]string{"Michael Joseph Ltd.", "London", "England", "UK"}, date: [3]int{1957, 12},
 		},
 
 		// How some ugly, inconsistent cases, are currently handled
@@ -236,7 +320,7 @@ func TestNovels(t *testing.T) {
 		},
 		{
 			text:      `NOVL: (Etlar, Carit. Stormen på København den 11. Februar 1659 og Gøngehøvdingen)`,
-			publisher: [3]string{`"Etlar`}, date: [3]int{1659},
+			publisher: [4]string{`"Etlar`}, date: [3]int{1659},
 		},
 	}
 
@@ -270,7 +354,10 @@ func TestNovels(t *testing.T) {
 		if b.Publisher.City != item.publisher[1] {
 			t.Errorf("(#%d) unexpected publisher city, got '%s'", i, b.Publisher.City)
 		}
-		if b.Publisher.Country != item.publisher[2] {
+		if b.Publisher.State != item.publisher[2] {
+			t.Errorf("(#%d) unexpected publisher state, got '%s'", i, b.Publisher.State)
+		}
+		if b.Publisher.Country != item.publisher[3] {
 			t.Errorf("(#%d) unexpected publisher country, got '%s'", i, b.Publisher.Country)
 		}
 		if b.Date.Year != item.date[0] {
@@ -294,12 +381,18 @@ func TestCritiques(t *testing.T) {
 			text:   `CRIT: Delmas, Jean. "Science-fiction, fantastique, cinéma d'hypothèse". In: "Jeune Cinéma" (Paris, France), Fédération Jean Vigo, Iss. # 13, March 1966, Pg. 1, (MG), ISSN: 0758-4202`,
 			author: "Delmas, Jean", title: "Science-fiction, fantastique, cinéma d'hypothèse",
 			publication: "Jeune Cinéma", pages: "1", issue: "13", issn: "0758-4202",
-			publisher: [3]string{"Fédération Jean Vigo", "Paris", "France"}, date: [3]int{1966, 3},
+			publisher: [4]string{"Fédération Jean Vigo", "Paris", "", "France"}, date: [3]int{1966, 3},
 		},
 		{
 			text:  `CRIT: "La chaussée des géants". In: "Cinémagazine" (Paris, France), Vol. 29, Iss. # 33, 1924, Pg. pgs. 261, (MG)`,
 			title: "La chaussée des géants", publication: "Cinémagazine", volume: "29", issue: "33", pages: "261",
-			publisher: [3]string{"", "Paris", "France"}, date: [3]int{1924},
+			publisher: [4]string{"", "Paris", "", "France"}, date: [3]int{1924},
+		},
+		{
+			text:   `CRIT: Kochert, Mélanie. "Blanche-Neige". In: "L'Estrade" (Metz, Moselle, France), SAS Indola Presse, Iss. # 21, May 2012, Pg. 8, (MG), ISSN: 2109-4217`,
+			author: "Kochert, Mélanie", title: "Blanche-Neige",
+			publication: "L'Estrade", pages: "8", issue: "21", issn: "2109-4217",
+			publisher: [4]string{"SAS Indola Presse", "Metz", "Moselle", "France"}, date: [3]int{2012, 5},
 		},
 		{text: `CRIT: "Title", Pg. 57-58`, title: "Title", pages: "57-58"},
 		{text: `CRIT: "Title", Pg. c1+c10`, title: "Title", pages: "c1+c10"},
@@ -337,7 +430,10 @@ func TestCritiques(t *testing.T) {
 		if b.Publisher.City != item.publisher[1] {
 			t.Errorf("(#%d) unexpected publisher city, got '%s'", i, b.Publisher.City)
 		}
-		if b.Publisher.Country != item.publisher[2] {
+		if b.Publisher.State != item.publisher[2] {
+			t.Errorf("(#%d) unexpected publisher state, got '%s'", i, b.Publisher.State)
+		}
+		if b.Publisher.Country != item.publisher[3] {
 			t.Errorf("(#%d) unexpected publisher country, got '%s'", i, b.Publisher.Country)
 		}
 		if b.Date.Year != item.date[0] {

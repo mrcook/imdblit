@@ -53,7 +53,10 @@ CRIT: Relizzo, Donald. In: "Demonique" (Los Angeles, California, USA), FantaCo E
 func TestBasicProcessing(t *testing.T) {
 	file := bytes.NewBuffer([]byte(imdbText)) // Fake a file read
 	db := imdb.NewIMDB(file)
-	_ = db.FindMovieAdaptations("Mansfield Park", "Jane Austen")
+	_, err := db.FindMovieAdaptations("Mansfield Park", "Jane Austen")
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
 
 	if db.TotalRecordCount() != 5 {
 		t.Errorf("expected a total of 5 movie records to have been processed, got %d", db.TotalRecordCount())
@@ -69,7 +72,10 @@ func TestMovieAdaptations(t *testing.T) {
 	file := bytes.NewBuffer([]byte(imdbText)) // Fake a file read
 	db := imdb.NewIMDB(file)
 
-	movies := db.FindMovieAdaptations("Mansfield Park", "Jane Austen")
+	movies, err := db.FindMovieAdaptations("Mansfield Park", "Jane Austen")
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
 
 	if len(movies) != 2 {
 		t.Fatalf("expected 2 movies to be found, got %d", len(movies))
@@ -89,7 +95,10 @@ func TestIMDB_ExtractAll(t *testing.T) {
 	file := bytes.NewBuffer([]byte(imdbText)) // Fake a file read
 	db := imdb.NewIMDB(file)
 
-	movies := db.ExtractAll()
+	movies, err := db.ExtractAll()
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
 
 	if len(movies) != 5 {
 		t.Fatalf("expected 5 movies to be found, got %d", len(movies))

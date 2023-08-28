@@ -9,10 +9,13 @@ import "strings"
 // The core details are extracted from the MOVI entry, but also all the other
 // entry types; ADPT, NOVL, CRIT, SCRP, etc.
 type Movie struct {
-	Title string
-	Year  int
-	Month string // as Roman Numerals
-	TV    bool
+	Title         string
+	Year          int
+	Month         int
+	TV            bool
+	SeriesName    string
+	SeriesNumber  int
+	EpisodeNumber int
 
 	Adaptations         []Adaptation
 	Books               []Book
@@ -37,9 +40,12 @@ type Book struct {
 	Publisher      Publisher
 	Date           Date
 	PageCount      int
+	Volume         string
+	Issue          string
 	ISBN           string
 	FirstPublished int
 	Note           string
+	MiscInfo       string // from the "In:" info; usually just www links or other random text.
 }
 
 // Novel parses a NOVL (original literary source) record entry.
@@ -49,37 +55,37 @@ type Novel struct {
 
 // Critique parses a CRIT (printed media reviews) record entry.
 type Critique struct {
-	publication
+	Publication
 }
 
 // Essay parses an ESSY (printed essay) record entry.
 type Essay struct {
-	publication
+	Publication
 }
 
 // Interview parses an IVIW (interview with cast or crew) record entry.
 type Interview struct {
-	publication
+	Publication
 }
 
 // Other parses an OTHR (other literature) record entry.
 type Other struct {
-	publication
+	Publication
 }
 
 // ProductionProtocol parses a PROT (production protocol) record entry.
 type ProductionProtocol struct {
-	publication
+	Publication
 }
 
 // Screenplay parses a SCRP (published screenplay) record entry.
 type Screenplay struct {
-	publication
+	Publication
 }
 
 // Publication is a base type used by non-book entries such as CRIT, ESSY, etc.
 // generally representing a magazine.
-type publication struct {
+type Publication struct {
 	// core publication details.
 	Name      string
 	Publisher Publisher
@@ -101,6 +107,7 @@ type publication struct {
 type Publisher struct {
 	Name    string
 	City    string
+	State   string // provence, county, state, etc.
 	Country string
 }
 
@@ -140,7 +147,7 @@ func UnmarshallBooks(data string, movie *Movie) {
 
 // IsAdaptation checks all book types (ADPT, BOOK, NOVL) and returns true if a
 // title/author match is found.
-func (m Movie) IsAdaptation(title, author string) bool {
+func (m *Movie) IsAdaptation(title, author string) bool {
 	for _, a := range m.Adaptations {
 		if m.titleMatches(a.Title, title) && m.authorMatches(a.Author, author) {
 			return true
@@ -160,7 +167,7 @@ func (m Movie) IsAdaptation(title, author string) bool {
 	return false
 }
 
-func (m Movie) titleMatches(srcTitle, testTitle string) bool {
+func (m *Movie) titleMatches(srcTitle, testTitle string) bool {
 	title := strings.ToLower(srcTitle)
 	testable := strings.ToLower(testTitle)
 
@@ -170,7 +177,7 @@ func (m Movie) titleMatches(srcTitle, testTitle string) bool {
 	return strings.Contains(title, testable)
 }
 
-func (m Movie) authorMatches(srcAuthor, testAuthor string) bool {
+func (m *Movie) authorMatches(srcAuthor, testAuthor string) bool {
 	author := strings.ToLower(srcAuthor)
 	testable := strings.ToLower(testAuthor)
 
@@ -188,4 +195,9 @@ func (m Movie) authorMatches(srcAuthor, testAuthor string) bool {
 	}
 
 	return matching
+}
+
+var monthRomanToInt = map[string]int{
+	"i": 1, "ii": 2, "iii": 3, "iv": 4, "v": 5, "vi": 6,
+	"vii": 7, "viii": 8, "ix": 9, "x": 10, "xi": 11, "xii": 12,
 }
